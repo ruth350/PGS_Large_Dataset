@@ -15,11 +15,31 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    #### Exclusicely for Camborne data (aka to much effort to copy in all the other files)
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+
+    photo = mo.image(
+        src="Camborne_Photo.png", 
+        width=600, 
+        alt="Photo of Camborne from Google Maps"
+    )
+    photo
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ##Data Cleaning
 
-    I have cleaned this data by:
-    - Replacing 'tr' on the rainfall data with a 0. tr means > 0.05, so 0 is close enough (and, importantly, numeric)
-    - Replacing any N/A values with spaces (so N/A doesn't become a value in its own right - like 25% of days had N/A windspeed)
+    ####I have cleaned this data by:
+    - ####Replacing 'tr' on the rainfall data with a 0. tr means > 0.05, so 0 is close enough (and, importantly, numeric)
+    - ####Ignoring any N/A values so they do not distupt numeric data
     """)
     return
 
@@ -28,14 +48,81 @@ def _(mo):
 def _():
     import marimo as mo
     import pandas as pd
+    def load_and_clean(file):
+        file_name = file +'.csv'
+        df = pd.read_csv(file_name, skiprows=5, na_values=["N/A", "n/a", " N/A"])
 
-    df = pd.read_csv("camborne_2015.csv", skiprows=5, na_values=["N/A", "n/a", " N/A"])
+        # Cleaning data
+        rain = 'Daily Total Rainfall (0900-0900) (mm)'
 
-    # Cleaning data
-    df['Daily Total Rainfall (0900-0900) (mm)'] = df['Daily Total Rainfall (0900-0900) (mm)'].replace('tr', 0)
-    df['Daily Total Rainfall (0900-0900) (mm)'] = pd.to_numeric(df['Daily Total Rainfall (0900-0900) (mm)'], errors='coerce')
+        if rain in df.columns:
+            df[rain] = df[rain].replace('tr', 0)
+            df[rain] = pd.to_numeric(df[rain], errors='coerce')
 
-    return df, mo
+        if 'Date' in df.columns:
+            df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+
+        return df
+
+    return load_and_clean, mo, pd
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ##Plot Against time (comparing 2015 and 1987)
+    """)
+    return
+
+
+@app.cell
+def _(load_and_clean, mo):
+    dataframes = {'1987': load_and_clean('camborne_1987'), '2015':load_and_clean('camborne_2015')}
+
+    cols_2015 = set(dataframes['2015'].select_dtypes('number').columns.tolist())
+    cols_1987 = set(dataframes['1987'].select_dtypes('number').columns.tolist())
+
+    valid_cols = list(cols_2015 & cols_1987)
+
+
+    dropdown_val = mo.ui.dropdown(
+        options=(valid_cols), 
+        value='Daily Mean Windspeed (0000-2400) (kn)',  # Initial selection
+        label="Choose value to compare"
+    )
+
+    dropdown_val
+    return dataframes, dropdown_val, valid_cols
+
+
+@app.cell
+def _(alt, dataframes, dropdown_scale, dropdown_val, pd, valid_cols):
+    monthly_averages_2015 = dataframes['2015'].groupby(dataframes['2015']['Date'].dt.month)[valid_cols].mean()
+    monthly_averages_1987 = dataframes['1987'].groupby(dataframes['1987']['Date'].dt.month)[valid_cols].mean()
+
+    df_1987 = monthly_averages_1987.reset_index()
+    df_2015 = monthly_averages_2015.reset_index()
+
+    # 2. Rename the column if it's still called 'Date' to avoid confusion
+    df_1987 = df_1987.rename(columns={'Date': 'Month'})
+    df_2015 = df_2015.rename(columns={'Date': 'Month'})
+
+    # 3. Add labels and combine
+    df_1987['Year'] = '1987'
+    df_2015['Year'] = '2015'
+    combined = pd.concat([df_1987, df_2015])
+
+    # 4. Plot using 'Month' instead of 'Date'
+    alt.Chart(combined).mark_line(point=True).encode(
+        x= alt.X('Month:O'),  # This will now show only 1 through 12
+        y= alt.Y(dropdown_val.value, scale=alt.Scale(type=dropdown_scale.value, zero=False, padding=10)),
+        color='Year:N'
+    ).properties(
+        width=600,
+        height=300
+    )
+
+    return
 
 
 @app.cell(hide_code=True)
@@ -47,56 +134,52 @@ def _(mo):
 
 
 @app.cell
+def _(load_and_clean):
+    df = load_and_clean("camborne_2015")
+    return (df,)
+
+
+@app.cell
 def _(df, mo):
-    # dropdowns
+
     numerical_cols = df.select_dtypes(include='float64').columns.tolist()
 
     dropdown_x = mo.ui.dropdown(
         options=(numerical_cols), 
         value='Daily Mean Windspeed (0000-2400) (kn)',  # Initial selection
-        label="Choose y axis value"
+        label="Choose x axis value"
     )
 
-    dropdown_x
-
-
-    return dropdown_x, numerical_cols
-
-
-@app.cell
-def _(mo, numerical_cols):
     dropdown_y = mo.ui.dropdown(
         options=(numerical_cols), 
         value='Daily Maximum Gust (0000-2400) (kn)',  # Initial selection
         label="Choose y axis value"
     )
 
-    dropdown_y
-    return (dropdown_y,)
-
-
-@app.cell
-def _(mo, numerical_cols):
     dropdown_color = mo.ui.dropdown(
         options=(numerical_cols), 
         value='Daily Total Sunshine (0000-2400) (hrs)',  # Initial selection
         label="Choose color"
     )
 
-    dropdown_color
-    return (dropdown_color,)
-
-
-@app.cell
-def _(mo):
     dropdown_scale = mo.ui.dropdown(
         options=['linear', 'log', 'symlog'],
         value="linear",
         label="Choose scale"
     )
 
-    dropdown_scale
-    return (dropdown_scale,)
+    display = mo.vstack([mo.hstack([dropdown_x, dropdown_color], justify="space-between"), mo.hstack([dropdown_y, dropdown_scale], justify="space-between")])
+
+    display
+
+
+    return (
+        dropdown_color,
+        dropdown_scale,
+        dropdown_x,
+        dropdown_y,
+        numerical_cols,
+    )
 
 
 @app.cell
@@ -144,7 +227,7 @@ def _(mo):
 def _(mo, numerical_cols):
     dropdown_histogram = mo.ui.dropdown(
         options=(numerical_cols), 
-        value='Daily Total Sunshine (0000-2400) (hrs)',  # Initial selection
+        value='Daily Mean Total Cloud (oktas)',  # Initial selection
         label="Choose Histogram value"
     )
     dropdown_histogram
@@ -153,26 +236,24 @@ def _(mo, numerical_cols):
 
 @app.cell
 def _(alt, df, dropdown_histogram):
-    histogram = alt.Chart(df).transform_joinaggregate(
-        total='count(*)'                     # 1. Calculate total rows in dataset
-    ).transform_calculate(
-        density='1 / datum.total'            # 2. Create a "density" contribution per row
-    ).mark_bar().encode(
+    histogram = alt.Chart(df).mark_bar().encode(
         alt.X(dropdown_histogram.value, bin=True, title=dropdown_histogram.value),
-        alt.Y('sum(density):Q', title='Frequency Density') # 3. Sum the contributions
+        alt.Y('count():Q', title='Frequency Density') 
     ).properties(
         width=600, 
-        height=400
+        height=400,
+        title=f'Frequency Distribution of {dropdown_histogram.value}'
     )
 
     histogram
-
     return
 
 
-@app.cell
-def _():
-    #Connected chart showing change in monthly average
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+ 
+    """)
     return
 
 
