@@ -121,7 +121,6 @@ def _(alt, dataframes, dropdown_scale, dropdown_val, pd, valid_cols):
         width=600,
         height=300
     )
-
     return
 
 
@@ -171,7 +170,6 @@ def _(df, mo):
     display = mo.vstack([mo.hstack([dropdown_x, dropdown_color], justify="space-between"), mo.hstack([dropdown_y, dropdown_scale], justify="space-between")])
 
     display
-
 
     return (
         dropdown_color,
