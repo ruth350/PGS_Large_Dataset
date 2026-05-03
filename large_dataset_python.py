@@ -48,9 +48,10 @@ def _(mo):
 def _():
     import marimo as mo
     import pandas as pd
+    import altair as alt
     def load_and_clean(file):
-        file_name = file +'.csv'
-        df = pd.read_csv(file_name, skiprows=5, na_values=["N/A", "n/a", " N/A"])
+
+        df = pd.read_csv(file, skiprows=5, na_values=["N/A", "n/a", " N/A"])
 
         # Cleaning data
         rain = 'Daily Total Rainfall (0900-0900) (mm)'
@@ -65,7 +66,7 @@ def _():
 
         return df
 
-    return load_and_clean, mo, pd
+    return alt, load_and_clean, mo, pd
 
 
 @app.cell(hide_code=True)
@@ -78,7 +79,9 @@ def _(mo):
 
 @app.cell
 def _(load_and_clean, mo):
-    dataframes = {'1987': load_and_clean('camborne_1987'), '2015':load_and_clean('camborne_2015')}
+    base_url = "https://ruth350.github.io/PGS_Large_Dataset/"
+
+    dataframes = {'1987': load_and_clean("camborne_1987.csv"), '2015':load_and_clean("camborne_2015.csv")}
 
     cols_2015 = set(dataframes['2015'].select_dtypes('number').columns.tolist())
     cols_1987 = set(dataframes['1987'].select_dtypes('number').columns.tolist())
@@ -97,7 +100,7 @@ def _(load_and_clean, mo):
 
 
 @app.cell
-def _(alt, dataframes, dropdown_scale, dropdown_val, pd, valid_cols):
+def _(alt, dataframes, dropdown_val, pd, valid_cols):
     monthly_averages_2015 = dataframes['2015'].groupby(dataframes['2015']['Date'].dt.month)[valid_cols].mean()
     monthly_averages_1987 = dataframes['1987'].groupby(dataframes['1987']['Date'].dt.month)[valid_cols].mean()
 
@@ -116,7 +119,7 @@ def _(alt, dataframes, dropdown_scale, dropdown_val, pd, valid_cols):
     # 4. Plot using 'Month' instead of 'Date'
     alt.Chart(combined).mark_line(point=True).encode(
         x= alt.X('Month:O'),  # This will now show only 1 through 12
-        y= alt.Y(dropdown_val.value, scale=alt.Scale(type=dropdown_scale.value, zero=False, padding=10)),
+        y= alt.Y(dropdown_val.value, scale=alt.Scale(zero=False, padding=10)),
         color='Year:N'
     ).properties(
         width=600,
@@ -134,8 +137,8 @@ def _(mo):
 
 
 @app.cell
-def _(load_and_clean):
-    df = load_and_clean("camborne_2015")
+def _(dataframes):
+    df = dataframes['2015']
     return (df,)
 
 
@@ -182,8 +185,7 @@ def _(df, mo):
 
 
 @app.cell
-def _(df, dropdown_color, dropdown_scale, dropdown_x, dropdown_y):
-    import altair as alt
+def _(alt, df, dropdown_color, dropdown_scale, dropdown_x, dropdown_y):
     # Add Choice of x and y variables
 
     # Add Choice of axes
@@ -210,7 +212,7 @@ def _(df, dropdown_color, dropdown_scale, dropdown_x, dropdown_y):
     ).interactive()
 
     chart
-    return (alt,)
+    return
 
 
 @app.cell(hide_code=True)
